@@ -1,0 +1,20 @@
+source:
+  system_name: pricefx
+  system_type: rest_api
+  naming_convention: camelCase
+
+  auth:
+    type: basic 
+    user_name: rensa-prod/biApiUser
+    secret_name: "pricefx-password"
+
+  connection:
+    base_url: "https://rensa.pricefx.com/pricefx/rensa-prod"
+
+  pagination:
+    type: body_loop # until-loop per 1,000,000 rows in request body until 0 rows returned
+    batch_size: 1000000
+
+  defaults:
+    landing_format: json
+    collection_reference: response.data

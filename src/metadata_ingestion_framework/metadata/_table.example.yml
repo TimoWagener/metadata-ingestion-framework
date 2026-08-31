@@ -1,0 +1,92 @@
+# Example table / endpoint metadata configuration for landing zone ingestion
+# -----------------------------------------------------------------------------------------
+# Reference SQL Translation (e.g. DB2 / SQL Server / Oracle):
+#
+# -- 1. Full Load:
+# SELECT COL_1, COL_2, COL_3 FROM SCHEMA.TABLE_NAME WHERE status = 'ACTIVE';
+#
+# -- 2. Incremental Overlap (Calculated with lookback window):
+# SELECT COL_1, COL_2, COL_3 FROM SCHEMA.TABLE_NAME 
+# WHERE status = 'ACTIVE' AND updatedAt >= :watermark_minus_3_days;
+#
+# -- 3. Bounded Full Load (Calculated rolling boundary):
+# SELECT COL_1, COL_2, COL_3 FROM SCHEMA.TABLE_NAME 
+# WHERE status = 'ACTIVE' AND orderDate >= :boundary_date;
+#
+# -- 4. Incremental Append:
+# SELECT COL_1, COL_2, COL_3 FROM SCHEMA.TABLE_NAME 
+# WHERE status = 'ACTIVE' AND eventTimestamp >= :last_watermark;
+# -----------------------------------------------------------------------------------------
+table:
+  name: TABLE_NAME # Table name or entity name (e.g. OSBSTD, contacts, orders)
+  endpoint: "/contacts" # Optional: REST/SOAP endpoint path (for API sources)
+  response_path: "results" # Optional: JSON path to data array in API response (e.g. 'data', 'items', 'results')
+  
+  schema: CUSTOM_SCHEMA # Optional: override the default schema from _source.yml
+  # custom_query: "SELECT col1, col2 FROM TABLE WHERE ..." # Optional: custom extraction SQL for DB sources
+
+  primary_key: [ID_COL_1, ID_COL_2] # Composite or single primary key columns
+
+  # Optional column subset. Omit to select all columns / extract all JSON fields
+  columns: [
+    COL_1, COL_2, COL_3
+  ]
+
+  # Optional static filters / query params applied at extract time
+  filters:
+    - "status = 'ACTIVE'"
+
+  # Optional table-level pagination override (if different from source defaults)
+  # pagination:
+  #   type: cursor
+  #   cursor_param: "after"
+  #   cursor_path: "paging.next.after"
+  #   page_size: 100
+
+  subscriptions:
+    # -----------------------------------------------------------------------------------
+    # Strategy 1: Full Load (Detects soft deletes via snapshot diff against bronze)
+    # -----------------------------------------------------------------------------------
+    - name: tr_daily_0300_full
+      active: true
+      load:
+        type: full_load
+
+    # -----------------------------------------------------------------------------------
+    # Strategy 2: Incremental Overlap (Upsert - Updates & Inserts with lookback overlap)
+    # -----------------------------------------------------------------------------------
+    - name: tr_daily_0300_incremental
+      active: true
+      load:
+        type: incremental_overlap
+        watermark_column: updatedAt # Last modified timestamp column
+        # Supported watermark_formats:
+        #   - unix_ms              (Epoch timestamp in milliseconds: 1788216578000)
+        #   - unix_s               (Epoch timestamp in seconds: 1788216578)
+        #   - iso8601              (Standard ISO timestamp: 2026-08-31T22:49:38Z)
+        #   - yyyyMMdd             (Integer date format: 20260831)
+        #   - yyyy-MM-dd HH:mm:ss  (Standard SQL datetime string)
+        watermark_format: unix_ms
+        lookback_period: 3 days # Overlap window to catch delayed updates
+
+    # -----------------------------------------------------------------------------------
+    # Strategy 3: Bounded Full Load (Soft delete detection within a rolling boundary)
+    # -----------------------------------------------------------------------------------
+    - name: tr_weekly_sunday_1100_bounded_full
+      active: true
+      load:
+        type: bounded_full_load
+        watermark_column: orderDate
+        watermark_format: iso8601
+        boundary_period: 1 calendar year # e.g. rolling 1 year window
+
+    # -----------------------------------------------------------------------------------
+    # Strategy 4: Ad-Hoc / Initial Historical Load (Manual trigger for backfill/seeding)
+    # -----------------------------------------------------------------------------------
+    - name: tr_adhoc_initial_load
+      active: false
+      load:
+        type: bounded_full_load # or full_load
+        watermark_column: orderDate
+        watermark_format: iso8601
+        boundary_period: 3 calendar years

@@ -1,0 +1,50 @@
+# Reference SQL (IBM DB2 for i / M3):
+# -----------------------------------------------------------------------------------------
+# -- Incremental Append (tr_daily_0300_all):
+# SELECT *
+# FROM M3FDBPRD.FGLEDG
+# WHERE EGCONO = 1
+#   AND EGLMDT >= :watermark_date
+# WITH UR;
+#
+# -- Bounded Full Load (tr_weekly_sunday_1100_bounded_full):
+# SELECT *
+# FROM M3FDBPRD.FGLEDG
+# WHERE EGCONO = 1
+#   AND EGACDT >= :boundary_date   -- e.g. 20260101 (1 calendar year boundary)
+# WITH UR;
+#
+# -- Ad-Hoc Initial Load (tr_adhoc_initial_load):
+# SELECT *
+# FROM M3FDBPRD.FGLEDG
+# WHERE EGCONO = 1
+#   AND EGACDT >= :boundary_date   -- e.g. 5 calendar years backfill
+# WITH UR;
+# -----------------------------------------------------------------------------------------
+
+table:
+  name: FGLEDG
+  primary_key: [EGCONO, EGDIVI, EGYEA4, EGJRNO, EGJSNO]
+  filters:
+    - "EGCONO = 1"
+  subscriptions:
+    - name: tr_daily_0300_all
+      active: true
+      load:
+        type: incremental_append
+        watermark_column: EGLMDT
+        watermark_format: yyyyMMdd
+    - name: tr_weekly_sunday_1100_bounded_full
+      active: true
+      load:
+        type: bounded_full_load
+        watermark_column: EGACDT
+        watermark_format: yyyyMMdd
+        boundary_period: 1 calendar year # example: 1 calendar year = 20260101
+    - name: tr_adhoc_initial_load
+      active: false
+      load:
+        type: bounded_full_load
+        watermark_column: EGACDT
+        watermark_format: yyyyMMdd
+        boundary_period: 5 calendar year

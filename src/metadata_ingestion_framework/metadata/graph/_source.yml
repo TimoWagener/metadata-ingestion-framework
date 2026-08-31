@@ -1,0 +1,22 @@
+source:
+  system_name: graph
+  system_type: rest_api
+  naming_convention: camelCase
+
+  auth:
+    type: oauth2_client_credentials
+    client_id: "00000000-0000-0000-0000-000000000000"
+    secret_name: "graph-client-secret"
+    token_url: "https://login.microsoftonline.com/<tenant_id>/oauth2/v2.0/token"
+    scope: "https://graph.microsoft.com/.default"
+
+  connection:
+    base_url: "https://graph.microsoft.com/v1.0"
+
+  pagination:
+    type: cursor
+    cursor_path: "@odata.nextLink"
+
+  defaults:
+    landing_format: json
+    collection_reference: value

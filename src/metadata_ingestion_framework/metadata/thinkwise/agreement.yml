@@ -1,0 +1,23 @@
+# Reference REST / OData Request (Thinkwise Indicium):
+# -----------------------------------------------------------------------------------------
+# GET https://tw-solutions-dev.rensafamily.company/indicium/iam/pp/agreement?$skip=0&$top=1000
+#
+# Azure Data Factory (ADF) Native Copy Activity Pagination Rules:
+#   Relative URL:          /agreement?$skip={offset}&$top=1000
+#   PaginationRules:
+#     AbsoluteUrl.{offset}: RANGE:0::1000
+#     EndCondition:$.value: Empty
+# -----------------------------------------------------------------------------------------
+
+table:
+  name: agreement
+  endpoint: "/agreement"
+
+  primary_key: [purchase_company_id, agreement_id]
+
+  subscriptions:
+    # Full load detects soft deletes on bronze via full snapshot difference
+    - name: tr_daily_0300_all
+      active: true
+      load:
+        type: full_load

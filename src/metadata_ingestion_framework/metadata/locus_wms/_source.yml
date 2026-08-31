@@ -1,0 +1,12 @@
+source:
+  system_name: locus_wms
+  system_type: oracle
+  naming_convention: UPPERFLATCASE
+
+  auth:
+    type: connection_string
+    secret_name: "locus-wms-connection-string"
+
+  defaults:
+    schema: LOCUSWMS
+    landing_format: parquet

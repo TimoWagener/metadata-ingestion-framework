@@ -1,0 +1,21 @@
+source:
+  system_name: topdesk
+  system_type: rest_api
+  naming_convention: camelCase
+
+  auth:
+    type: basic # TopDesk application password / token
+    user_name: svc_powerbi
+    secret_name: "topdesk-password"
+
+  connection:
+    base_url: "https://rensa-group.topdesk.net/tas/api"
+
+  pagination:
+    type: offset_limit
+    page_size: 1000
+    page_param: pageStart
+    size_param: pageSize
+
+  defaults:
+    landing_format: json

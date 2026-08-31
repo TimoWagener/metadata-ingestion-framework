@@ -1,0 +1,22 @@
+source:
+  system_name: thinkwise
+  system_type: rest_api
+  naming_convention: lower_camel_case
+
+  auth:
+    type: basic # or bearer / openid
+    user_name: read_all_api_user
+    secret_name: "thinkwise-password"
+
+  connection:
+    base_url: "https://tw-solutions-dev.rensafamily.company/indicium/iam/pp"
+
+  pagination:
+    type: offset_limit # OData pagination ($skip / $top)
+    page_size: 1000
+    page_param: "$skip"
+    size_param: "$top"
+
+  defaults:
+    landing_format: json
+    collection_reference: value

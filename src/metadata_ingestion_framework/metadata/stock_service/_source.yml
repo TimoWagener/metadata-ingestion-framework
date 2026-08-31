@@ -1,0 +1,11 @@
+source:
+  system_name: stock_service
+  system_type: azure_cosmos_db_for_nosql
+  naming_convention: camelCase # Inner activities are PascalCase, flattened into camelCase (e.g. requestJson[0].Gtin -> requestGtin)
+
+  auth:
+    type: connection_string #its called Account Key in the app...  But we have to add a connection string...
+    secret_name: "stock-service-connection-string"
+
+  defaults:
+    landing_format: json

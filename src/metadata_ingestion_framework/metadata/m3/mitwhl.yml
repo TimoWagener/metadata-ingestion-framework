@@ -1,0 +1,19 @@
+# Reference SQL (IBM DB2 for i / M3):
+# -----------------------------------------------------------------------------------------
+# -- Full Load (tr_daily_0300_all):
+# SELECT *
+# FROM M3FDBPRD.MITWHL
+# WHERE MWCONO = 1
+# WITH UR;
+# -----------------------------------------------------------------------------------------
+
+table:
+  name: MITWHL
+  primary_key: [MWCONO, MWWHLO]
+  filters:
+    - "MWCONO = 1"
+  subscriptions:
+    - name: tr_daily_0300_all
+      active: false
+      load:
+        type: full_load

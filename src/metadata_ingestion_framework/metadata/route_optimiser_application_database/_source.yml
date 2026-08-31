@@ -1,0 +1,12 @@
+source:
+  system_name: route_optimiser_application_database
+  system_type: mssql
+  naming_convention: UPPER_SNAKE_CASE
+
+  auth:
+    type: connection_string
+    secret_name: "route-optimiser-application-connection-string"
+
+  defaults:
+    schema: dbo
+    landing_format: parquet

@@ -1,0 +1,64 @@
+# Reference SQL (IBM DB2 for i / M3):
+# -----------------------------------------------------------------------------------------
+# -- Incremental Overlap (tr_daily_0300_all):
+# SELECT UCCONO, UCDIVI, UCORNO, UCDLIX, UCWHLO, UCPONR, UCPOSX, UCORIG, UCIVNO, UCIVDT,
+#        UCYEA4, UCACDT, UCCUNO, UCITNO, UCSUNO, UCRSCD, UCIVQT, UCIVQA, UCSAAM, UCDIA1,
+#        UCDIA2, UCDIA3, UCDIA4, UCDIA5, UCDIA6, UCDCOS, UCLMDT, UCPCLA, UCRSC1
+# FROM M3FDBPRD.OSBSTD
+# WHERE UCCONO = 1
+#   AND UCDIVI IN ('DTC', 'REN', 'GEV', 'GAF', 'OMI', 'RLA')
+#   AND UCLMDT >= :watermark_date_minus_3_days
+# WITH UR;
+#
+# -- Bounded Full Load (tr_weekly_sunday_1100_bounded_full_loads):
+# SELECT UCCONO, UCDIVI, UCORNO, UCDLIX, UCWHLO, UCPONR, UCPOSX, UCORIG, UCIVNO, UCIVDT,
+#        UCYEA4, UCACDT, UCCUNO, UCITNO, UCSUNO, UCRSCD, UCIVQT, UCIVQA, UCSAAM, UCDIA1,
+#        UCDIA2, UCDIA3, UCDIA4, UCDIA5, UCDIA6, UCDCOS, UCLMDT, UCPCLA, UCRSC1
+# FROM M3FDBPRD.OSBSTD
+# WHERE UCCONO = 1
+#   AND UCDIVI IN ('DTC', 'REN', 'GEV', 'GAF', 'OMI', 'RLA')
+#   AND UCACDT >= :boundary_date  -- e.g. 20260101 (1 calendar year boundary)
+# WITH UR;
+#
+# -- Ad-Hoc Initial Load (tr_adhoc_initial_load):
+# SELECT UCCONO, UCDIVI, ...
+# FROM M3FDBPRD.OSBSTD
+# WHERE UCCONO = 1
+#   AND UCDIVI IN ('DTC', 'REN', 'GEV', 'GAF', 'OMI', 'RLA')
+#   AND UCACDT >= :boundary_date  -- e.g. 3 calendar years backfill
+# WITH UR;
+# -----------------------------------------------------------------------------------------
+
+table:
+  name: OSBSTD
+  primary_key: [UCCONO, UCDIVI, UCORNO, UCDLIX, UCWHLO, UCPONR, UCPOSX, UCORIG]
+  columns: [
+    UCCONO, UCDIVI, UCORNO, UCDLIX, UCWHLO, UCPONR, UCPOSX, UCORIG, UCIVNO, UCIVDT,
+    UCYEA4, UCACDT, UCCUNO, UCITNO, UCSUNO, UCRSCD, UCIVQT, UCIVQA, UCSAAM, UCDIA1,
+    UCDIA2, UCDIA3, UCDIA4, UCDIA5, UCDIA6, UCDCOS, UCLMDT, UCPCLA, UCRSC1
+  ]
+  filters:
+    - "UCCONO = 1"
+    - "UCDIVI IN ('DTC', 'REN', 'GEV', 'GAF', 'OMI', 'RLA')"
+  subscriptions:
+    - name: tr_daily_0300_all
+      active: true
+      load:
+        type: incremental_overlap
+        watermark_column: UCLMDT
+        watermark_format: yyyyMMdd
+        lookback_period: 3 days
+    - name: tr_weekly_sunday_1100_bounded_full_loads
+      active: true
+      load:
+        type: bounded_full_load
+        watermark_column: UCACDT
+        watermark_format: yyyyMMdd
+        boundary_period: 1 calendar year
+    - name: tr_adhoc_initial_load
+      active: false
+      load:
+        type: bounded_full_load
+        watermark_column: UCACDT
+        watermark_format: yyyyMMdd
+        boundary_period: 3 calendar years

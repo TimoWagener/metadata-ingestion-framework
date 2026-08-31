@@ -1,0 +1,19 @@
+# Reference SQL (IBM DB2 for i / M3):
+# -----------------------------------------------------------------------------------------
+# -- Full Load (tr_daily_0300_all):
+# SELECT *
+# FROM M3FDBPRD.MITMAS
+# WHERE MMCONO = 1
+# WITH UR;
+# -----------------------------------------------------------------------------------------
+
+table:
+  name: MITMAS
+  primary_key: [MMCONO, MMITNO]
+  filters:
+    - "MMCONO = 1"
+  subscriptions:
+    - name: tr_daily_0300_all
+      active: true
+      load:
+        type: full_load

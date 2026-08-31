@@ -1,0 +1,40 @@
+source:
+  system_name: system_name_placeholder # Identifier for the source. Example: locus_wms, pricefx, hubspot, m3
+  system_type: rest_api # Type: rest_api, soap, oracle, db2, mssql, synapse_link
+
+  naming_convention: camelCase # Default casing: UPPERFLATCASE, camelCase, PascalCase, lower_snake_case, UPPER_SNAKE_CASE, mixed
+
+  # Authentication & Secrets management (resolved by Key Vault / Secrets Manager at runtime)
+  auth:
+    type: oauth2_client_credentials # none, basic, bearer, api_key, oauth2_client_credentials, connection_string
+    secret_name: "kv-secret-name" # Key Vault secret name containing credentials/token/conn_string
+    token_url: "https://auth.example.com/oauth2/v2.0/token" # Required for oauth2_client_credentials
+    header_name: "Authorization" # For api_key or custom auth headers (e.g. 'x-api-key', 'Ocp-Apim-Subscription-Key')
+
+  # Connection settings
+  connection:
+    base_url: "https://api.example.com/v1" # Base URL for REST/SOAP APIs
+    # host: "db-server.domain.local" # For database sources
+    # port: 1433 # For database sources
+    # database_name: "my_database" # For database sources
+    timeout_seconds: 120 # HTTP or SQL command timeout
+
+  # Resilience & Rate limiting (Protects flaky or rate-limited endpoints)
+  resilience:
+    max_retries: 5 # Number of retry attempts on transient errors (429, 500, 502, 503, 504)
+    backoff_factor: 2 # Exponential backoff multiplier (e.g., 2s -> 4s -> 8s)
+    rate_limit_per_minute: 60 # Max requests allowed per minute (optional throttle)
+
+  # Default pagination strategy for REST APIs (can be overridden per table/endpoint)
+  pagination:
+    type: page_number # offset_limit, page_number, cursor, body_loop, none
+    page_size: 1000 # Number of records per batch/page
+    page_param: "page" # Query parameter name for page number (or offset)
+    size_param: "limit" # Query parameter name for page size
+    # cursor_path: "paging.next.after" # JSON path to cursor in response (for cursor pagination)
+
+  # Landing zone defaults
+  defaults:
+    schema: DBO # Default database schema (for DB sources) or namespace
+    landing_format: parquet # Landing file format: parquet, json, delta
+    compression: snappy # Compression codec: snappy, gzip, zstd

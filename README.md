@@ -34,10 +34,14 @@ uv run metadata-ingestion-framework --source thinkwise --table agreement
 
 *(You can also run directly with `uv run src/metadata_ingestion_framework/main.py --source m3 --table mitmas`)*
 
-## Walkthrough Demo
+## Metadata Inspector (Human-Readable Walkthrough)
 
-Run the simple inspection walkthrough script:
+Run the visual metadata inspector for detailed source, table, date generator, and query breakdowns:
 
 ```bash
-uv run src/metadata_ingestion_framework/simple_main.py
+# Default (M3 OSBSTD)
+uv run src/metadata_ingestion_framework/inspect_metadata.py
+
+# Any table
+uv run src/metadata_ingestion_framework/inspect_metadata.py --source thinkwise --table agreement
 ```

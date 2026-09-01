@@ -1,13 +1,6 @@
-import argparse
-import json
 from pathlib import Path
-import sys
 from typing import Any, Dict, List, Optional, Tuple
 import yaml
-
-# Ensure src directory is in sys.path for direct script execution
-if str(Path(__file__).parent.parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from metadata_ingestion_framework.dialects import AdfDialect, SourceStrategy, StrategyRegistry
 from metadata_ingestion_framework.models import (
@@ -18,6 +11,9 @@ from metadata_ingestion_framework.models import (
 )
 
 METADATA_DIR = Path(__file__).parent / "metadata"
+
+# Watermark storage formats the dialects can compile expressions for.
+SUPPORTED_WATERMARK_FORMATS = {"yyyyMMdd", "unix_ms"}
 
 
 class MetadataCompiler:
@@ -43,6 +39,7 @@ class MetadataCompiler:
         base_filters: List[str],
         system_type: str,
         pagination_cfg: Dict[str, Any],
+        sub_name: Optional[str],
     ) -> Tuple[List[str], List[str], Optional[RuntimeDateGenerator]]:
         """Resolves where clauses and runtime date generators for a subscription."""
         if system_type == "rest_api":
@@ -64,6 +61,15 @@ class MetadataCompiler:
             period_str = load_cfg.get("lookback_period" if "incremental" in load_type else "boundary_period", "0 days")
             watermark_fmt = load_cfg.get("watermark_format", "yyyyMMdd")
             col = load_cfg.get("watermark_column")
+            if not col:
+                raise ValueError(
+                    f"Subscription '{sub_name}': load type '{load_type}' requires a 'watermark_column'."
+                )
+            if watermark_fmt not in SUPPORTED_WATERMARK_FORMATS:
+                raise ValueError(
+                    f"Subscription '{sub_name}': unsupported watermark_format '{watermark_fmt}'. "
+                    f"Supported formats: {sorted(SUPPORTED_WATERMARK_FORMATS)}"
+                )
 
             period = PeriodExpression.parse(period_str)
             source_code = strategy.date_offset(period, watermark_fmt)
@@ -83,8 +89,20 @@ class MetadataCompiler:
         return where_executable, where_template, date_gen
 
     def compile(self, source_name: str, table_name: str) -> TableManifest:
-        source_data = self._load_yaml(self.metadata_dir / source_name / "_source.yml").get("source", {})
-        table_data = self._load_yaml(self.metadata_dir / source_name / f"{table_name.lower()}.yml").get("table", {})
+        source_path = self.metadata_dir / source_name / "_source.yml"
+        table_path = self.metadata_dir / source_name / f"{table_name.lower()}.yml"
+        if not source_path.exists():
+            available = sorted(d.name for d in self.metadata_dir.iterdir() if d.is_dir())
+            raise FileNotFoundError(
+                f"Unknown source '{source_name}'. Available sources: {available}"
+            )
+        if not table_path.exists():
+            available = sorted(p.stem for p in self.metadata_dir.joinpath(source_name).glob("*.yml") if not p.name.startswith("_"))
+            raise FileNotFoundError(
+                f"Unknown table '{table_name}' for source '{source_name}'. Available tables: {available}"
+            )
+        source_data = self._load_yaml(source_path).get("source", {})
+        table_data = self._load_yaml(table_path).get("table", {})
 
         system_type = source_data.get("system_type", "mssql")
         strategy = StrategyRegistry.get(system_type)
@@ -122,7 +140,7 @@ class MetadataCompiler:
             load_type = load.get("type", "full_load")
 
             where_exec, where_tpl, date_gen = self._resolve_predicates(
-                strategy, load, load_type, base_filters, system_type, pagination
+                strategy, load, load_type, base_filters, system_type, pagination, sub_name
             )
 
             compiled_subscriptions.append(
@@ -147,27 +165,3 @@ class MetadataCompiler:
             subscriptions=compiled_subscriptions,
         )
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Compile ingestion metadata into executable manifest.")
-    parser.add_argument("--source", default="thinkwise", help="Source system name (default: thinkwise)")
-    parser.add_argument("--table", default="agreement", help="Table name (default: agreement)")
-    parser.add_argument("--out", help="Optional output path to write the JSON file")
-    args = parser.parse_args()
-
-    compiler = MetadataCompiler()
-    manifest = compiler.compile(args.source, args.table)
-    json_output = json.dumps(manifest.to_dict(), indent=2)
-
-    if args.out:
-        out_path = Path(args.out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(json_output)
-        print(f"Manifest written to {out_path}")
-    else:
-        print(json_output)
-
-
-if __name__ == "__main__":
-    main()

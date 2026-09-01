@@ -89,8 +89,20 @@ class MetadataCompiler:
         return where_executable, where_template, date_gen
 
     def compile(self, source_name: str, table_name: str) -> TableManifest:
-        source_data = self._load_yaml(self.metadata_dir / source_name / "_source.yml").get("source", {})
-        table_data = self._load_yaml(self.metadata_dir / source_name / f"{table_name.lower()}.yml").get("table", {})
+        source_path = self.metadata_dir / source_name / "_source.yml"
+        table_path = self.metadata_dir / source_name / f"{table_name.lower()}.yml"
+        if not source_path.exists():
+            available = sorted(d.name for d in self.metadata_dir.iterdir() if d.is_dir())
+            raise FileNotFoundError(
+                f"Unknown source '{source_name}'. Available sources: {available}"
+            )
+        if not table_path.exists():
+            available = sorted(p.stem for p in self.metadata_dir.joinpath(source_name).glob("*.yml") if not p.name.startswith("_"))
+            raise FileNotFoundError(
+                f"Unknown table '{table_name}' for source '{source_name}'. Available tables: {available}"
+            )
+        source_data = self._load_yaml(source_path).get("source", {})
+        table_data = self._load_yaml(table_path).get("table", {})
 
         system_type = source_data.get("system_type", "mssql")
         strategy = StrategyRegistry.get(system_type)

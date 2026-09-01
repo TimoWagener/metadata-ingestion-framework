@@ -20,7 +20,10 @@ def main() -> None:
     args = parser.parse_args()
 
     compiler = MetadataCompiler()
-    manifest = compiler.compile(args.source, args.table)
+    try:
+        manifest = compiler.compile(args.source, args.table)
+    except FileNotFoundError as e:
+        parser.error(str(e))
     json_output = json.dumps(manifest.to_dict(), indent=2)
 
     if args.out:

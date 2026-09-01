@@ -35,7 +35,7 @@ table:
     initial:
       watermark_column: EGACDT
       watermark_format: yyyyMMdd
-      boundary_period: 5 calendar years
+      boundary_period: 5 calendar years # invoked ad-hoc (no schedule), not referenced by a subscription
   subscriptions:
     - name: daily_0300
       load: append

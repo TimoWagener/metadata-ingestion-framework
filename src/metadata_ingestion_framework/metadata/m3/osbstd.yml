@@ -42,7 +42,7 @@ table:
     initial:
       watermark_column: UCACDT
       watermark_format: yyyyMMdd
-      boundary_period: 3 calendar years
+      boundary_period: 3 calendar years # invoked ad-hoc (no schedule), not referenced by a subscription
   subscriptions:
     - name: daily_0300
       load: incremental

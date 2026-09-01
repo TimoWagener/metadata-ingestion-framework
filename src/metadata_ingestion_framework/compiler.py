@@ -18,9 +18,6 @@ SUPPORTED_WATERMARK_FORMATS = {"yyyyMMdd", "unix_ms"}
 # Load types that extract data relative to a watermark instead of full snapshots.
 WATERMARK_LOAD_TYPES = ("incremental", "append", "bounded", "initial")
 
-# Prefix expected on scheduled trigger/subscription names (stripped by the trigger compiler).
-TRIGGER_NAME_PREFIX = "tr_"
-
 
 class MetadataCompiler:
     """

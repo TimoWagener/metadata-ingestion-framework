@@ -22,7 +22,7 @@ def main() -> None:
     compiler = MetadataCompiler()
     try:
         manifest = compiler.compile(args.source, args.table)
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         parser.error(str(e))
     json_output = json.dumps(manifest.to_dict(), indent=2)
 

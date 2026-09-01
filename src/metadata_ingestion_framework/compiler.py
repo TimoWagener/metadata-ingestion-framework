@@ -18,6 +18,9 @@ SUPPORTED_WATERMARK_FORMATS = {"yyyyMMdd", "unix_ms"}
 # Load types that extract data relative to a watermark instead of full snapshots.
 WATERMARK_LOAD_TYPES = ("incremental", "append", "bounded", "initial")
 
+# The snapshot load type; the only one usable without a loads entry.
+FULL_LOAD_TYPE = "full"
+
 
 class MetadataCompiler:
     """
@@ -137,11 +140,11 @@ class MetadataCompiler:
         subscriptions = list(table_data.get("subscriptions", []))
         for sub in subscriptions:
             load_key = sub.get("load")
-            if load_key not in loads and load_key != "full":
+            if load_key not in loads and load_key != FULL_LOAD_TYPE:
                 raise ValueError(
                     f"Subscription '{sub.get('name')}' references undefined load "
                     f"'{load_key}'. Defined loads: {sorted(loads)}. "
-                    "Only 'full' may be used without a loads entry."
+                    f"Only '{FULL_LOAD_TYPE}' may be used without a loads entry."
                 )
 
         compiled_subscriptions = []

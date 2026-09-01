@@ -39,9 +39,8 @@ def test_missing_watermark_column_raises(tmp_path: Path) -> None:
     compiler = _make_source(tmp_path)
     (tmp_path / "src1" / "t.yml").write_text(
         yaml.safe_dump(
-            {"table": {"subscriptions": [
-                {"name": "s1", "load": {"type": "incremental_overlap", "lookback_period": "3 days"}},
-            ]}}
+            {"table": {"loads": {"incremental": {"overlap_period": "3 days"}},
+                       "subscriptions": [{"name": "s1", "load": "incremental"}]}}
         )
     )
     with pytest.raises(ValueError, match="requires a 'watermark_column'"):
@@ -52,17 +51,39 @@ def test_unsupported_watermark_format_raises(tmp_path: Path) -> None:
     compiler = _make_source(tmp_path)
     (tmp_path / "src1" / "t.yml").write_text(
         yaml.safe_dump(
-            {"table": {"subscriptions": [
-                {"name": "s1", "load": {
-                    "type": "incremental_overlap",
-                    "watermark_column": "updated_at",
-                    "watermark_format": "iso8601",
-                    "lookback_period": "3 days",
-                }},
-            ]}}
+            {"table": {"loads": {"incremental": {
+                "watermark_column": "updated_at",
+                "watermark_format": "iso8601",
+                "overlap_period": "3 days",
+            }},
+             "subscriptions": [{"name": "s1", "load": "incremental"}]}}
         )
     )
     with pytest.raises(ValueError, match="unsupported watermark_format"):
+        compiler.compile("src1", "t")
+
+
+def test_subscription_references_undefined_load(tmp_path: Path) -> None:
+    compiler = _make_source(tmp_path)
+    (tmp_path / "src1" / "t.yml").write_text(
+        yaml.safe_dump(
+            {"table": {"loads": {"full": {}},
+                       "subscriptions": [{"name": "s1", "load": "incremental"}]}}
+        )
+    )
+    with pytest.raises(ValueError, match="references undefined load"):
+        compiler.compile("src1", "t")
+
+
+def test_subscription_without_name_raises(tmp_path: Path) -> None:
+    compiler = _make_source(tmp_path)
+    (tmp_path / "src1" / "t.yml").write_text(
+        yaml.safe_dump(
+            {"table": {"loads": {"full": {}},
+                       "subscriptions": [{"load": "full"}]}}
+        )
+    )
+    with pytest.raises(ValueError, match="without a name"):
         compiler.compile("src1", "t")
 
 

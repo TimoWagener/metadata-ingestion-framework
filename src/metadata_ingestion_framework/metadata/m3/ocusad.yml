@@ -1,23 +1,15 @@
 # Reference SQL (IBM DB2 for i / M3):
 # -----------------------------------------------------------------------------------------
-# -- Incremental Overlap (tr_daily_0300_all):
-# SELECT *
-# FROM M3FDBPRD.OCUSAD
+# -- Incremental Overlap (daily_0300):
+# SELECT * FROM M3FDBPRD.OCUSAD
 # WHERE OPCONO = 1
-#   AND OPLMTS >= :watermark_unix_ms_minus_2_hours
+#   AND OPLMTS >= :watermark_date  -- unix_ms minus 2 hours
 # WITH UR;
 #
-# -- Bounded Full Load (tr_weekly_sunday_1100_bounded_full_loads):
-# SELECT *
-# FROM M3FDBPRD.OCUSAD
+# -- Bounded Full Load (weekly_sunday_1100):
+# SELECT * FROM M3FDBPRD.OCUSAD
 # WHERE OPCONO = 1
 #   AND OPRGDT >= :boundary_date  -- e.g. 20260101
-# WITH UR;
-#
-# -- Ad-Hoc Initial Load (tr_adhoc_initial_load):
-# SELECT *
-# FROM M3FDBPRD.OCUSAD
-# WHERE OPCONO = 1
 # WITH UR;
 # -----------------------------------------------------------------------------------------
 
@@ -26,22 +18,17 @@ table:
   primary_key: [OPCONO, OPCUNO, OPADRT, OPADID]
   filters:
     - "OPCONO = 1"
+  loads:
+    incremental:
+      watermark_column: OPLMTS
+      watermark_format: unix_ms
+      overlap_period: 2 hours
+    bounded:
+      watermark_column: OPRGDT
+      watermark_format: yyyyMMdd
+      boundary_period: 1 calendar year
   subscriptions:
-    - name: tr_daily_0300_all
-      active: true
-      load:
-        type: incremental_overlap
-        watermark_column: OPLMTS
-        watermark_format: unix_ms
-        lookback_period: 2 hour
-    - name: tr_weekly_sunday_1100_bounded_full_loads
-      active: true
-      load:
-        type: bounded_full_load
-        watermark_column: OPRGDT
-        watermark_format: yyyyMMdd
-        boundary_period: 1 calendar year
-    - name: tr_adhoc_initial_load
-      active: false
-      load:
-        type: full_load
+    - name: daily_0300
+      load: incremental
+    - name: weekly_sunday_1100
+      load: bounded

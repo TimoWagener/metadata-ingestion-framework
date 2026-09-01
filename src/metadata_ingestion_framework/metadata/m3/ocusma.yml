@@ -1,8 +1,7 @@
 # Reference SQL (IBM DB2 for i / M3):
 # -----------------------------------------------------------------------------------------
-# -- Full Load (tr_daily_0300_all):
-# SELECT *
-# FROM M3FDBPRD.OCUSMA
+# -- Full Load (daily_0300):
+# SELECT * FROM M3FDBPRD.OCUSMA
 # WHERE OKCONO = 1
 # WITH UR;
 # -----------------------------------------------------------------------------------------
@@ -12,8 +11,8 @@ table:
   primary_key: [OKCONO, OKCUNO]
   filters:
     - "OKCONO = 1"
+  loads:
+    full: {}
   subscriptions:
-    - name: tr_daily_0300_all
-      active: true
-      load:
-        type: full_load
+    - name: daily_0300
+      load: full

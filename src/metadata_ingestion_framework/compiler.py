@@ -15,6 +15,12 @@ METADATA_DIR = Path(__file__).parent / "metadata"
 # Watermark storage formats the dialects can compile expressions for.
 SUPPORTED_WATERMARK_FORMATS = {"yyyyMMdd", "unix_ms"}
 
+# Load types that extract data relative to a watermark instead of full snapshots.
+WATERMARK_LOAD_TYPES = ("incremental", "append", "bounded", "initial")
+
+# Prefix expected on scheduled trigger/subscription names (stripped by the trigger compiler).
+TRIGGER_NAME_PREFIX = "tr_"
+
 
 class MetadataCompiler:
     """
@@ -56,9 +62,10 @@ class MetadataCompiler:
         where_template = list(base_filters)
         date_gen = None
 
-        if load_type in ("incremental_overlap", "incremental_append", "bounded_full_load"):
-            param_name = "watermark_date" if "incremental" in load_type else "boundary_date"
-            period_str = load_cfg.get("lookback_period" if "incremental" in load_type else "boundary_period", "0 days")
+        if load_type in WATERMARK_LOAD_TYPES:
+            param_name = "watermark_date" if load_type in ("incremental", "append") else "boundary_date"
+            period_key = "overlap_period" if load_type in ("incremental", "append") else "boundary_period"
+            period_str = load_cfg.get(period_key, "0 days")
             watermark_fmt = load_cfg.get("watermark_format", "yyyyMMdd")
             col = load_cfg.get("watermark_column")
             if not col:
@@ -127,20 +134,29 @@ class MetadataCompiler:
         pagination = table_data.get("pagination") or source_data.get("pagination", {})
         pagination_rules = strategy.build_pagination_rules(pagination, collection_ref)
 
-        # Normalize subscriptions: auto-inject ad-hoc full load if not defined
+        # Validate subscriptions reference defined loads
+        loads = table_data.get("loads", {})
         subscriptions = list(table_data.get("subscriptions", []))
-        if not any(s.get("name") == "tr_adhoc_initial_load" for s in subscriptions):
-            subscriptions.append({"name": "tr_adhoc_initial_load", "active": False, "load": {"type": "full_load"}})
+        for sub in subscriptions:
+            if sub.get("load") not in loads:
+                raise ValueError(
+                    f"Subscription '{sub.get('name')}' references undefined load "
+                    f"'{sub.get('load')}'. Defined loads: {sorted(loads)}"
+                )
 
         compiled_subscriptions = []
         for sub in subscriptions:
             sub_name = sub.get("name")
+            if not sub_name:
+                raise ValueError(
+                    f"Subscription without a name in table '{actual_table_name}'."
+                )
             active = sub.get("active", True)
-            load = sub.get("load", {})
-            load_type = load.get("type", "full_load")
+            load_type = sub["load"]
+            load_cfg = loads[load_type]
 
             where_exec, where_tpl, date_gen = self._resolve_predicates(
-                strategy, load, load_type, base_filters, system_type, pagination, sub_name
+                strategy, load_cfg, load_type, base_filters, system_type, pagination, sub_name
             )
 
             compiled_subscriptions.append(
@@ -149,7 +165,10 @@ class MetadataCompiler:
                     active=active,
                     load_type=load_type,
                     format=landing_format,
-                    landing_path=f"landing/{source_name}/{actual_table_name.lower()}/subscription={sub_name}/",
+                    landing_path=(
+                        f"landing/{source_name}/{actual_table_name.lower()}/"
+                        f"load={load_type}/"
+                    ),
                     query=strategy.build_query(target, columns, where_exec),
                     query_template=strategy.build_query(target, columns, where_tpl),
                     runtime_date_generator=date_gen,

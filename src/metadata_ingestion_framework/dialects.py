@@ -137,6 +137,13 @@ class RestApiStrategy(SourceStrategy):
         return None
 
 
+_SYSTEM_TYPES = {"db2", "mssql", "sqlserver", "oracle", "rest_api"}
+
+
+class UnknownSystemTypeError(ValueError):
+    """Raised when metadata declares a system_type with no compiled strategy."""
+
+
 class StrategyRegistry:
     """Registry mapping system_type to appropriate SourceStrategy."""
 
@@ -149,8 +156,13 @@ class StrategyRegistry:
     }
 
     @classmethod
-    def get(cls, system_type: str) -> SourceStrategy:
-        return cls._strategies.get(system_type.lower(), MSSQLStrategy())
+    def get(cls, system_type: str) -> "SourceStrategy":
+        key = system_type.lower()
+        if key not in cls._strategies:
+            raise UnknownSystemTypeError(
+                f"Unknown system_type '{system_type}'. Supported types: {sorted(cls._strategies)}"
+            )
+        return cls._strategies[key]
 
     @classmethod
     def register(cls, system_type: str, strategy: SourceStrategy) -> None:

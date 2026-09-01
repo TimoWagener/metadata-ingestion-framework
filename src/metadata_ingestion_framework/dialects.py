@@ -137,9 +137,6 @@ class RestApiStrategy(SourceStrategy):
         return None
 
 
-_SYSTEM_TYPES = {"db2", "mssql", "sqlserver", "oracle", "rest_api"}
-
-
 class UnknownSystemTypeError(ValueError):
     """Raised when metadata declares a system_type with no compiled strategy."""
 

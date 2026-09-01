@@ -163,7 +163,3 @@ class StrategyRegistry:
                 f"Unknown system_type '{system_type}'. Supported types: {sorted(cls._strategies)}"
             )
         return cls._strategies[key]
-
-    @classmethod
-    def register(cls, system_type: str, strategy: SourceStrategy) -> None:
-        cls._strategies[system_type.lower()] = strategy

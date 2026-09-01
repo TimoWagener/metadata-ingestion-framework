@@ -1,13 +1,6 @@
-import argparse
-import json
 from pathlib import Path
-import sys
 from typing import Any, Dict, List, Optional, Tuple
 import yaml
-
-# Ensure src directory is in sys.path for direct script execution
-if str(Path(__file__).parent.parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from metadata_ingestion_framework.dialects import AdfDialect, SourceStrategy, StrategyRegistry
 from metadata_ingestion_framework.models import (
@@ -147,27 +140,3 @@ class MetadataCompiler:
             subscriptions=compiled_subscriptions,
         )
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Compile ingestion metadata into executable manifest.")
-    parser.add_argument("--source", default="thinkwise", help="Source system name (default: thinkwise)")
-    parser.add_argument("--table", default="agreement", help="Table name (default: agreement)")
-    parser.add_argument("--out", help="Optional output path to write the JSON file")
-    args = parser.parse_args()
-
-    compiler = MetadataCompiler()
-    manifest = compiler.compile(args.source, args.table)
-    json_output = json.dumps(manifest.to_dict(), indent=2)
-
-    if args.out:
-        out_path = Path(args.out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(json_output)
-        print(f"Manifest written to {out_path}")
-    else:
-        print(json_output)
-
-
-if __name__ == "__main__":
-    main()

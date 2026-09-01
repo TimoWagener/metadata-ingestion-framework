@@ -15,10 +15,7 @@ table:
 
   primary_key: [purchase_company_id, agreement_id]
 
-  loads:
-    # Full load detects soft deletes on bronze via full snapshot difference
-    full: {}
-
   subscriptions:
+    # Full load detects soft deletes on bronze via full snapshot difference
     - name: daily_0300
       load: full

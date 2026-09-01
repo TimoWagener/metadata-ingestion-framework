@@ -11,8 +11,6 @@ table:
   primary_key: [MMCONO, MMITNO]
   filters:
     - "MMCONO = 1"
-  loads:
-    full: {}
   subscriptions:
     - name: daily_0300
       load: full

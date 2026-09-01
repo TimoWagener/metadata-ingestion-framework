@@ -131,14 +131,17 @@ class MetadataCompiler:
         pagination = table_data.get("pagination") or source_data.get("pagination", {})
         pagination_rules = strategy.build_pagination_rules(pagination, collection_ref)
 
-        # Validate subscriptions reference defined loads
+        # Subscriptions reference loads; a reference to 'full' without a loads
+        # entry implies a plain full load. Watermark loads must be declared.
         loads = table_data.get("loads", {})
         subscriptions = list(table_data.get("subscriptions", []))
         for sub in subscriptions:
-            if sub.get("load") not in loads:
+            load_key = sub.get("load")
+            if load_key not in loads and load_key != "full":
                 raise ValueError(
                     f"Subscription '{sub.get('name')}' references undefined load "
-                    f"'{sub.get('load')}'. Defined loads: {sorted(loads)}"
+                    f"'{load_key}'. Defined loads: {sorted(loads)}. "
+                    "Only 'full' may be used without a loads entry."
                 )
 
         compiled_subscriptions = []
@@ -150,7 +153,7 @@ class MetadataCompiler:
                 )
             active = sub.get("active", True)
             load_type = sub["load"]
-            load_cfg = loads[load_type]
+            load_cfg = loads.get(load_type, {})
 
             where_exec, where_tpl, date_gen = self._resolve_predicates(
                 strategy, load_cfg, load_type, base_filters, system_type, pagination, sub_name

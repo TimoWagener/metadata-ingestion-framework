@@ -75,6 +75,29 @@ def test_subscription_references_undefined_load(tmp_path: Path) -> None:
         compiler.compile("src1", "t")
 
 
+def test_implicit_full_load_without_loads_entry(tmp_path: Path) -> None:
+    compiler = _make_source(tmp_path)
+    (tmp_path / "src1" / "t.yml").write_text(
+        yaml.safe_dump(
+            {"table": {"subscriptions": [{"name": "s1", "load": "full"}]}}
+        )
+    )
+    manifest = compiler.compile("src1", "t")
+    assert manifest.subscriptions[0].load_type == "full"
+    assert "WHERE" not in manifest.subscriptions[0].query_template
+
+
+def test_undeclared_watermark_load_still_raises(tmp_path: Path) -> None:
+    compiler = _make_source(tmp_path)
+    (tmp_path / "src1" / "t.yml").write_text(
+        yaml.safe_dump(
+            {"table": {"subscriptions": [{"name": "s1", "load": "incremental"}]}}
+        )
+    )
+    with pytest.raises(ValueError, match="references undefined load"):
+        compiler.compile("src1", "t")
+
+
 def test_subscription_without_name_raises(tmp_path: Path) -> None:
     compiler = _make_source(tmp_path)
     (tmp_path / "src1" / "t.yml").write_text(

@@ -49,7 +49,10 @@ table:
   #   page_size: 100
 
   # Load types define HOW data can be extracted from this table.
-  # Subscriptions below reference these keys by name.
+  # Subscriptions reference these keys by name. A 'full' load needs no entry
+  # here — a subscription referencing 'full' without a loads entry implies a
+  # plain full load. All watermark loads (incremental/append/bounded/initial)
+  # MUST be declared below.
   loads:
     # Full Load (snapshot; soft-delete detection via snapshot diff against bronze)
     full: {}

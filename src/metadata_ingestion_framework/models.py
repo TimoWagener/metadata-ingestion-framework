@@ -38,7 +38,12 @@ class PeriodExpression:
 
         amount = int(match.group(1))
         normalized_unit = match.group(2).replace(" ", "_").rstrip("s")
-        unit = cls._UNIT_MAPPING.get(normalized_unit, PeriodUnit.DAY)
+        try:
+            unit = cls._UNIT_MAPPING[normalized_unit]
+        except KeyError:
+            raise ValueError(
+                f"Unknown period unit in '{raw}'. Supported units: {sorted(set(cls._UNIT_MAPPING))}"
+            ) from None
         return cls(amount=amount, unit=unit)
 
 

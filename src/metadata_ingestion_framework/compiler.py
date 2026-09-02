@@ -15,8 +15,9 @@ METADATA_DIR = Path(__file__).parent / "metadata"
 # Watermark storage formats the dialects can compile expressions for.
 SUPPORTED_WATERMARK_FORMATS = {"yyyyMMdd", "unix_ms"}
 
-# Load types that extract data relative to a watermark instead of full snapshots.
-WATERMARK_LOAD_TYPES = ("incremental", "append", "bounded", "initial")
+# Load types driven by the persisted watermark state file. Their watermark
+# value comes from state (max observed value minus overlap), not from now.
+WATERMARK_LOAD_TYPES = ("incremental", "append")
 
 # The snapshot load type; the only one usable without a loads entry.
 FULL_LOAD_TYPE = "full"
@@ -62,9 +63,12 @@ class MetadataCompiler:
         where_template = list(base_filters)
         date_gen = None
 
+        # Watermark loads (incremental/append) extract relative to the persisted
+        # state watermark. All other load types (full/bounded/initial) extract
+        # relative to the current date/time via their runtime date expression.
         if load_type in WATERMARK_LOAD_TYPES:
-            param_name = "watermark_date" if load_type in ("incremental", "append") else "boundary_date"
-            period_key = "overlap_period" if load_type in ("incremental", "append") else "boundary_period"
+            param_name = "watermark_date"
+            period_key = "overlap_period"
             period_str = load_cfg.get(period_key, "0 days")
             watermark_fmt = load_cfg.get("watermark_format", "yyyyMMdd")
             col = load_cfg.get("watermark_column")
@@ -76,6 +80,31 @@ class MetadataCompiler:
                 raise ValueError(
                     f"Subscription '{sub_name}': unsupported watermark_format '{watermark_fmt}'. "
                     f"Supported formats: {sorted(SUPPORTED_WATERMARK_FORMATS)}"
+                )
+
+            period = PeriodExpression.parse(period_str)
+            source_code = strategy.date_offset(period, watermark_fmt)
+            adf_code = AdfDialect.date_offset(period, watermark_fmt)
+
+            where_template.append(f"{col} >= :{param_name}")
+            where_executable.append(f"{col} >= {source_code}" if source_code else f"{col} >= :{param_name}")
+
+            date_gen = RuntimeDateGenerator(
+                parameter_name=param_name,
+                period=period_str,
+                format=watermark_fmt,
+                source_runtime_code=source_code,
+                adf_runtime_code=adf_code,
+            )
+
+        elif load_type in ("bounded", "initial"):
+            param_name = "boundary_date"
+            period_str = load_cfg.get("boundary_period", "0 days")
+            watermark_fmt = load_cfg.get("watermark_format", "yyyyMMdd")
+            col = load_cfg.get("watermark_column")
+            if not col:
+                raise ValueError(
+                    f"Subscription '{sub_name}': load type '{load_type}' requires a 'watermark_column'."
                 )
 
             period = PeriodExpression.parse(period_str)

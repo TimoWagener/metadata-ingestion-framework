@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from metadata_ingestion_framework.models import PeriodExpression, PeriodUnit
+
+# Fixed OData page size for REST sources; paging rules themselves are
+# configured once in ADF, not in metadata.
+PAGE_SIZE = 1000
 
 
 class AdfDialect:
@@ -32,6 +36,10 @@ class SourceStrategy(ABC):
     @abstractmethod
     def build_query(self, target: str, columns: List[str], where_clauses: List[str]) -> str:
         pass
+
+    def rest_query_params(self) -> Optional[Tuple[List[str], List[str]]]:
+        """(initial, paged) query params for REST sources; None for DB strategies."""
+        return None
 
 
 class DB2Strategy(SourceStrategy):
@@ -117,6 +125,13 @@ class RestApiStrategy(SourceStrategy):
         # one-time in the ADF Copy Activity, not in metadata.
         query_params = f"?{where_clauses[0]}" if where_clauses else ""
         return f"GET {target}{query_params}"
+
+    def rest_query_params(self) -> Tuple[List[str], List[str]]:
+        # OData-style offset pagination; actual paging is ADF one-time setup.
+        return (
+            [f"$skip=0&$top={PAGE_SIZE}"],
+            [f"$skip={{offset}}&$top={PAGE_SIZE}"],
+        )
 
 
 class UnknownSystemTypeError(ValueError):

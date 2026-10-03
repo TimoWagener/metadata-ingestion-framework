@@ -22,9 +22,9 @@ WATERMARK_LOAD_TYPES = ("incremental", "append")
 # The snapshot load type; the only one usable without a loads entry.
 FULL_LOAD_TYPE = "full"
 
-# Fixed OData page size for REST sources; paging rules themselves are
-# configured once in ADF, not in metadata.
-PAGE_SIZE = 1000
+# Allowed YAML keys per file type; anything else is a typo and fails loud.
+SOURCE_KEYS = {"system_name", "system_type", "naming_convention", "schema"}
+TABLE_KEYS = {"name", "schema", "primary_key", "columns", "filters", "loads", "subscriptions"}
 
 
 class MetadataCompiler:
@@ -42,23 +42,27 @@ class MetadataCompiler:
         with open(file_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
 
+    @staticmethod
+    def _check_keys(data: Dict[str, Any], allowed: set, file_path: Path) -> None:
+        """Fail loud on unknown YAML keys — typos must never compile silently."""
+        unknown = sorted(set(data) - allowed)
+        if unknown:
+            raise ValueError(
+                f"Unknown key(s) {unknown} in {file_path}. Allowed keys: {sorted(allowed)}"
+            )
+
     def _resolve_predicates(
         self,
         strategy: SourceStrategy,
         load_cfg: Dict[str, Any],
         load_type: str,
         base_filters: List[str],
-        system_type: str,
         sub_name: Optional[str],
     ) -> Tuple[List[str], List[str], Optional[RuntimeDateGenerator]]:
         """Resolves where clauses and runtime date generators for a subscription."""
-        if system_type == "rest_api":
-            # OData-style offset pagination; actual paging is ADF one-time setup.
-            return (
-                [f"$skip=0&$top={PAGE_SIZE}"],
-                [f"$skip={{offset}}&$top={PAGE_SIZE}"],
-                None,
-            )
+        rest_params = strategy.rest_query_params()
+        if rest_params is not None:
+            return rest_params[0], rest_params[1], None
 
         where_executable = list(base_filters)
         where_template = list(base_filters)
@@ -140,16 +144,28 @@ class MetadataCompiler:
             )
         source_data = self._load_yaml(source_path).get("source", {})
         table_data = self._load_yaml(table_path).get("table", {})
+        self._check_keys(source_data, SOURCE_KEYS, source_path)
+        self._check_keys(table_data, TABLE_KEYS, table_path)
 
-        system_type = source_data.get("system_type", "mssql")
+        system_type = source_data.get("system_type")
+        if not system_type:
+            raise ValueError(f"'system_type' is required in {source_path}.")
         strategy = StrategyRegistry.get(system_type)
 
-        schema = table_data.get("schema") or source_data.get("schema", "dbo")
-        actual_table_name = table_data.get("name", table_name.upper())
+        actual_table_name = table_data.get("name") or table_name
         columns = table_data.get("columns", ["*"])
         base_filters = list(table_data.get("filters", []))
 
-        target = actual_table_name if system_type == "rest_api" else f"{schema}.{actual_table_name}"
+        if system_type == "rest_api":
+            target = actual_table_name
+        else:
+            schema = table_data.get("schema") or source_data.get("schema")
+            if not schema:
+                raise ValueError(
+                    f"'schema' is required for '{system_type}' source '{source_name}' "
+                    f"(in {source_path} or {table_path})."
+                )
+            target = f"{schema}.{actual_table_name}"
 
 
         # Subscriptions reference loads; a reference to 'full' without a loads
@@ -177,7 +193,7 @@ class MetadataCompiler:
             load_cfg = loads.get(load_type, {})
 
             where_exec, where_tpl, date_gen = self._resolve_predicates(
-                strategy, load_cfg, load_type, base_filters, system_type, sub_name
+                strategy, load_cfg, load_type, base_filters, sub_name
             )
 
             compiled_subscriptions.append(

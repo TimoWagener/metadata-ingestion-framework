@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from metadata_ingestion_framework.models import PeriodExpression, PeriodUnit
+
+# Fixed OData page size for REST sources; paging rules themselves are
+# configured once in ADF, not in metadata.
+PAGE_SIZE = 1000
 
 
 class AdfDialect:
@@ -33,9 +37,8 @@ class SourceStrategy(ABC):
     def build_query(self, target: str, columns: List[str], where_clauses: List[str]) -> str:
         pass
 
-    def build_pagination_rules(
-        self, pagination_cfg: Dict[str, Any], collection_ref: str
-    ) -> Optional[Dict[str, str]]:
+    def rest_query_params(self) -> Optional[Tuple[List[str], List[str]]]:
+        """(initial, paged) query params for REST sources; None for DB strategies."""
         return None
 
 
@@ -118,23 +121,17 @@ class RestApiStrategy(SourceStrategy):
         return None
 
     def build_query(self, target: str, columns: List[str], where_clauses: List[str]) -> str:
+        # target is the endpoint (e.g. "agreement"); paging is configured
+        # one-time in the ADF Copy Activity, not in metadata.
         query_params = f"?{where_clauses[0]}" if where_clauses else ""
         return f"GET {target}{query_params}"
 
-    def build_pagination_rules(
-        self, pagination_cfg: Dict[str, Any], collection_ref: str
-    ) -> Optional[Dict[str, str]]:
-        pag_type = pagination_cfg.get("type")
-        if pag_type == "offset_limit":
-            page_size = pagination_cfg.get("page_size", 1000)
-            return {
-                "AbsoluteUrl.{offset}": f"RANGE:0::{page_size}",
-                f"EndCondition:$.{collection_ref}": "Empty",
-            }
-        elif pag_type == "cursor":
-            cursor_path = pagination_cfg.get("cursor_path", "@odata.nextLink")
-            return {"AbsoluteUrl": f"Body:$.[{cursor_path}]"}
-        return None
+    def rest_query_params(self) -> Tuple[List[str], List[str]]:
+        # OData-style offset pagination; actual paging is ADF one-time setup.
+        return (
+            [f"$skip=0&$top={PAGE_SIZE}"],
+            [f"$skip={{offset}}&$top={PAGE_SIZE}"],
+        )
 
 
 class UnknownSystemTypeError(ValueError):

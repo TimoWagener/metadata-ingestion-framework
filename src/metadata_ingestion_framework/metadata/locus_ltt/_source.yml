@@ -3,10 +3,4 @@ source:
   system_type: oracle
   naming_convention: UPPERFLATCASE
 
-  auth:
-    type: connection_string
-    secret_name: "locus-ltt-connection-string"
-
-  defaults:
-    schema: LOCUSLTT
-    landing_format: parquet
+  schema: LOCUSLTT

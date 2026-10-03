@@ -40,10 +40,7 @@ def inspect(source_name: str = "m3", table_name: str = "osbstd") -> None:
     print(f"System Name:        {source_data.get('system_name')}")
     print(f"System Type:        {source_data.get('system_type')}")
     print(f"Naming Convention:  {source_data.get('naming_convention')}")
-    print(f"Auth Type:          {source_data.get('auth', {}).get('type')}")
-    print(f"Secret Name:        {source_data.get('auth', {}).get('secret_name')}")
-    print(f"Default Schema:     {source_data.get('defaults', {}).get('schema', 'N/A')}")
-    print(f"Landing Format:     {source_data.get('defaults', {}).get('landing_format')}")
+    print(f"Schema:             {source_data.get('schema', 'N/A')}")
 
     # 2. Table Details
     print("\n--- [2] Table Configuration ---")
@@ -67,9 +64,6 @@ def inspect(source_name: str = "m3", table_name: str = "osbstd") -> None:
             print(f"     - Period:              {gen.period} ({gen.format})")
             print(f"     - Source Runtime Code: {gen.source_runtime_code}")
             print(f"     - ADF Expression:      {gen.adf_runtime_code}")
-
-        if sub.adf_pagination_rules:
-            print(f"   ADF Pagination Rules: {sub.adf_pagination_rules}")
 
         print(f"   [Executable Query (Direct Run)]:\n{sub.query}")
         print(f"   [Parameterized Template (ADF Run)]:\n{sub.query_template}")

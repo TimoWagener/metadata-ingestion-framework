@@ -22,6 +22,10 @@ WATERMARK_LOAD_TYPES = ("incremental", "append")
 # The snapshot load type; the only one usable without a loads entry.
 FULL_LOAD_TYPE = "full"
 
+# Allowed YAML keys per file type; anything else is a typo and fails loud.
+SOURCE_KEYS = {"system_name", "system_type", "naming_convention", "schema"}
+TABLE_KEYS = {"name", "schema", "primary_key", "columns", "filters", "loads", "subscriptions"}
+
 
 class MetadataCompiler:
     """
@@ -38,26 +42,27 @@ class MetadataCompiler:
         with open(file_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
 
+    @staticmethod
+    def _check_keys(data: Dict[str, Any], allowed: set, file_path: Path) -> None:
+        """Fail loud on unknown YAML keys — typos must never compile silently."""
+        unknown = sorted(set(data) - allowed)
+        if unknown:
+            raise ValueError(
+                f"Unknown key(s) {unknown} in {file_path}. Allowed keys: {sorted(allowed)}"
+            )
+
     def _resolve_predicates(
         self,
         strategy: SourceStrategy,
         load_cfg: Dict[str, Any],
         load_type: str,
         base_filters: List[str],
-        system_type: str,
-        pagination_cfg: Dict[str, Any],
         sub_name: Optional[str],
     ) -> Tuple[List[str], List[str], Optional[RuntimeDateGenerator]]:
         """Resolves where clauses and runtime date generators for a subscription."""
-        if system_type == "rest_api":
-            page_param = pagination_cfg.get("page_param", "$skip")
-            size_param = pagination_cfg.get("size_param", "$top")
-            page_size = pagination_cfg.get("page_size", 1000)
-            return (
-                [f"{page_param}=0&{size_param}={page_size}"],
-                [f"{page_param}={{offset}}&{size_param}={page_size}"],
-                None,
-            )
+        rest_params = strategy.rest_query_params()
+        if rest_params is not None:
+            return rest_params[0], rest_params[1], None
 
         where_executable = list(base_filters)
         where_template = list(base_filters)
@@ -139,29 +144,29 @@ class MetadataCompiler:
             )
         source_data = self._load_yaml(source_path).get("source", {})
         table_data = self._load_yaml(table_path).get("table", {})
+        self._check_keys(source_data, SOURCE_KEYS, source_path)
+        self._check_keys(table_data, TABLE_KEYS, table_path)
 
-        system_type = source_data.get("system_type", "mssql")
+        system_type = source_data.get("system_type")
+        if not system_type:
+            raise ValueError(f"'system_type' is required in {source_path}.")
         strategy = StrategyRegistry.get(system_type)
 
-        schema = table_data.get("schema") or source_data.get("defaults", {}).get("schema", "dbo")
-        actual_table_name = table_data.get("name", table_name.upper())
+        actual_table_name = table_data.get("name") or table_name
         columns = table_data.get("columns", ["*"])
         base_filters = list(table_data.get("filters", []))
-        landing_format = table_data.get("landing_format") or source_data.get("defaults", {}).get("landing_format", "parquet")
-        collection_ref = (
-            table_data.get("collection_reference")
-            or table_data.get("response_path")
-            or source_data.get("defaults", {}).get("collection_reference", "value")
-        )
 
-        target = (
-            f"{source_data.get('connection', {}).get('base_url', '').rstrip('/')}{table_data.get('endpoint', f'/{actual_table_name.lower()}')}"
-            if system_type == "rest_api"
-            else f"{schema}.{actual_table_name}"
-        )
+        if system_type == "rest_api":
+            target = actual_table_name
+        else:
+            schema = table_data.get("schema") or source_data.get("schema")
+            if not schema:
+                raise ValueError(
+                    f"'schema' is required for '{system_type}' source '{source_name}' "
+                    f"(in {source_path} or {table_path})."
+                )
+            target = f"{schema}.{actual_table_name}"
 
-        pagination = table_data.get("pagination") or source_data.get("pagination", {})
-        pagination_rules = strategy.build_pagination_rules(pagination, collection_ref)
 
         # Subscriptions reference loads; a reference to 'full' without a loads
         # entry implies a plain full load. Watermark loads must be declared.
@@ -188,7 +193,7 @@ class MetadataCompiler:
             load_cfg = loads.get(load_type, {})
 
             where_exec, where_tpl, date_gen = self._resolve_predicates(
-                strategy, load_cfg, load_type, base_filters, system_type, pagination, sub_name
+                strategy, load_cfg, load_type, base_filters, sub_name
             )
 
             compiled_subscriptions.append(
@@ -196,7 +201,6 @@ class MetadataCompiler:
                     name=sub_name,
                     active=active,
                     load_type=load_type,
-                    format=landing_format,
                     landing_path=(
                         f"landing/{source_name}/{actual_table_name.lower()}/"
                         f"load={load_type}/"
@@ -204,7 +208,6 @@ class MetadataCompiler:
                     query=strategy.build_query(target, columns, where_exec),
                     query_template=strategy.build_query(target, columns, where_tpl),
                     runtime_date_generator=date_gen,
-                    adf_pagination_rules=pagination_rules,
                 )
             )
 

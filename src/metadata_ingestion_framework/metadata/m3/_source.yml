@@ -4,10 +4,4 @@ source:
 
   naming_convention: UPPERFLATCASE
 
-  auth:
-    type: connection_string
-    secret_name: "m3-connection-string"
-
-  defaults:
-    schema: M3FDBPRD
-    landing_format: parquet
+  schema: M3FDBPRD

@@ -61,12 +61,10 @@ class CompiledSubscription:
     name: str
     active: bool
     load_type: str
-    format: str
     landing_path: str
     query: str
     query_template: str
     runtime_date_generator: Optional[RuntimeDateGenerator] = None
-    adf_pagination_rules: Optional[Dict[str, str]] = None
 
 
 @dataclass

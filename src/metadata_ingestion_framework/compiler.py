@@ -22,6 +22,10 @@ WATERMARK_LOAD_TYPES = ("incremental", "append")
 # The snapshot load type; the only one usable without a loads entry.
 FULL_LOAD_TYPE = "full"
 
+# Fixed OData page size for REST sources; paging rules themselves are
+# configured once in ADF, not in metadata.
+PAGE_SIZE = 1000
+
 
 class MetadataCompiler:
     """
@@ -45,17 +49,14 @@ class MetadataCompiler:
         load_type: str,
         base_filters: List[str],
         system_type: str,
-        pagination_cfg: Dict[str, Any],
         sub_name: Optional[str],
     ) -> Tuple[List[str], List[str], Optional[RuntimeDateGenerator]]:
         """Resolves where clauses and runtime date generators for a subscription."""
         if system_type == "rest_api":
-            page_param = pagination_cfg.get("page_param", "$skip")
-            size_param = pagination_cfg.get("size_param", "$top")
-            page_size = pagination_cfg.get("page_size", 1000)
+            # OData-style offset pagination; actual paging is ADF one-time setup.
             return (
-                [f"{page_param}=0&{size_param}={page_size}"],
-                [f"{page_param}={{offset}}&{size_param}={page_size}"],
+                [f"$skip=0&$top={PAGE_SIZE}"],
+                [f"$skip={{offset}}&$top={PAGE_SIZE}"],
                 None,
             )
 
@@ -143,25 +144,13 @@ class MetadataCompiler:
         system_type = source_data.get("system_type", "mssql")
         strategy = StrategyRegistry.get(system_type)
 
-        schema = table_data.get("schema") or source_data.get("defaults", {}).get("schema", "dbo")
+        schema = table_data.get("schema") or source_data.get("schema", "dbo")
         actual_table_name = table_data.get("name", table_name.upper())
         columns = table_data.get("columns", ["*"])
         base_filters = list(table_data.get("filters", []))
-        landing_format = table_data.get("landing_format") or source_data.get("defaults", {}).get("landing_format", "parquet")
-        collection_ref = (
-            table_data.get("collection_reference")
-            or table_data.get("response_path")
-            or source_data.get("defaults", {}).get("collection_reference", "value")
-        )
 
-        target = (
-            f"{source_data.get('connection', {}).get('base_url', '').rstrip('/')}{table_data.get('endpoint', f'/{actual_table_name.lower()}')}"
-            if system_type == "rest_api"
-            else f"{schema}.{actual_table_name}"
-        )
+        target = actual_table_name if system_type == "rest_api" else f"{schema}.{actual_table_name}"
 
-        pagination = table_data.get("pagination") or source_data.get("pagination", {})
-        pagination_rules = strategy.build_pagination_rules(pagination, collection_ref)
 
         # Subscriptions reference loads; a reference to 'full' without a loads
         # entry implies a plain full load. Watermark loads must be declared.
@@ -188,7 +177,7 @@ class MetadataCompiler:
             load_cfg = loads.get(load_type, {})
 
             where_exec, where_tpl, date_gen = self._resolve_predicates(
-                strategy, load_cfg, load_type, base_filters, system_type, pagination, sub_name
+                strategy, load_cfg, load_type, base_filters, system_type, sub_name
             )
 
             compiled_subscriptions.append(
@@ -196,7 +185,6 @@ class MetadataCompiler:
                     name=sub_name,
                     active=active,
                     load_type=load_type,
-                    format=landing_format,
                     landing_path=(
                         f"landing/{source_name}/{actual_table_name.lower()}/"
                         f"load={load_type}/"
@@ -204,7 +192,6 @@ class MetadataCompiler:
                     query=strategy.build_query(target, columns, where_exec),
                     query_template=strategy.build_query(target, columns, where_tpl),
                     runtime_date_generator=date_gen,
-                    adf_pagination_rules=pagination_rules,
                 )
             )
 

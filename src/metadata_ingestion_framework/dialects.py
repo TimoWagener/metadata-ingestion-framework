@@ -33,11 +33,6 @@ class SourceStrategy(ABC):
     def build_query(self, target: str, columns: List[str], where_clauses: List[str]) -> str:
         pass
 
-    def build_pagination_rules(
-        self, pagination_cfg: Dict[str, Any], collection_ref: str
-    ) -> Optional[Dict[str, str]]:
-        return None
-
 
 class DB2Strategy(SourceStrategy):
     """IBM DB2 for i / M3 dialect strategy."""
@@ -118,23 +113,10 @@ class RestApiStrategy(SourceStrategy):
         return None
 
     def build_query(self, target: str, columns: List[str], where_clauses: List[str]) -> str:
+        # target is the endpoint (e.g. "agreement"); paging is configured
+        # one-time in the ADF Copy Activity, not in metadata.
         query_params = f"?{where_clauses[0]}" if where_clauses else ""
         return f"GET {target}{query_params}"
-
-    def build_pagination_rules(
-        self, pagination_cfg: Dict[str, Any], collection_ref: str
-    ) -> Optional[Dict[str, str]]:
-        pag_type = pagination_cfg.get("type")
-        if pag_type == "offset_limit":
-            page_size = pagination_cfg.get("page_size", 1000)
-            return {
-                "AbsoluteUrl.{offset}": f"RANGE:0::{page_size}",
-                f"EndCondition:$.{collection_ref}": "Empty",
-            }
-        elif pag_type == "cursor":
-            cursor_path = pagination_cfg.get("cursor_path", "@odata.nextLink")
-            return {"AbsoluteUrl": f"Body:$.[{cursor_path}]"}
-        return None
 
 
 class UnknownSystemTypeError(ValueError):

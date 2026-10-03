@@ -1,8 +1,8 @@
 # Reference REST / OData Request (Thinkwise Indicium):
 # -----------------------------------------------------------------------------------------
-# GET https://tw-solutions-dev.rensafamily.company/indicium/iam/pp/agreement?$skip=0&$top=1000
+# GET agreement?$skip=0&$top=1000
 #
-# Azure Data Factory (ADF) Native Copy Activity Pagination Rules:
+# Azure Data Factory (ADF) Copy Activity — one-time setup in the UI:
 #   Relative URL:          /agreement?$skip={offset}&$top=1000
 #   PaginationRules:
 #     AbsoluteUrl.{offset}: RANGE:0::1000
@@ -11,7 +11,6 @@
 
 table:
   name: agreement
-  endpoint: "/agreement"
 
   primary_key: [purchase_company_id, agreement_id]
 
